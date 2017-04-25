@@ -14,12 +14,12 @@
 #import "MWPhotoBrowser.h"
 
 @interface MWPhoto () {
-
+    
     BOOL _loadingInProgress;
-    id <SDWebImageOperation> _webImageOperation;
+    SDWebImageDownloadToken *_webImageOperation;
     PHImageRequestID _assetRequestID;
     PHImageRequestID _assetVideoRequestID;
-        
+    
 }
 
 @property (nonatomic, strong) UIImage *image;
@@ -38,7 +38,7 @@
 #pragma mark - Class Methods
 
 + (MWPhoto *)photoWithImage:(UIImage *)image {
-	return [[MWPhoto alloc] initWithImage:image];
+    return [[MWPhoto alloc] initWithImage:image];
 }
 
 + (MWPhoto *)photoWithURL:(NSURL *)url {
@@ -211,10 +211,10 @@
 // Load from local file
 - (void)_performLoadUnderlyingImageAndNotifyWithWebURL:(NSURL *)url {
     @try {
-        SDWebImageManager *manager = [SDWebImageManager sharedManager];
+        SDWebImageDownloader *manager = [SDWebImageDownloader sharedDownloader];
         _webImageOperation = [manager downloadImageWithURL:url
                                                    options:0
-                                                  progress:^(NSInteger receivedSize, NSInteger expectedSize) {
+                                                  progress:^(NSInteger receivedSize, NSInteger expectedSize, NSURL * _Nullable targetURL) {
                                                       if (expectedSize > 0) {
                                                           float progress = receivedSize / (float)expectedSize;
                                                           NSDictionary* dict = [NSDictionary dictionaryWithObjectsAndKeys:
@@ -223,7 +223,7 @@
                                                           [[NSNotificationCenter defaultCenter] postNotificationName:MWPHOTO_PROGRESS_NOTIFICATION object:dict];
                                                       }
                                                   }
-                                                 completed:^(UIImage *image, NSError *error, SDImageCacheType cacheType, BOOL finished, NSURL *imageURL) {
+                                                 completed:^(UIImage * _Nullable image, NSData * _Nullable data, NSError * _Nullable error, BOOL finished) {
                                                      if (error) {
                                                          MWLog(@"SDWebImage failed to download image: %@", error);
                                                      }
@@ -307,13 +307,13 @@
             [self imageLoadingComplete];
         });
     }];
-
+    
 }
 
 // Release if we can get it again from path or url
 - (void)unloadUnderlyingImage {
     _loadingInProgress = NO;
-	self.underlyingImage = nil;
+    self.underlyingImage = nil;
 }
 
 - (void)imageLoadingComplete {
@@ -331,7 +331,8 @@
 
 - (void)cancelAnyLoading {
     if (_webImageOperation != nil) {
-        [_webImageOperation cancel];
+        [[SDWebImageDownloader sharedDownloader] cancel:_webImageOperation];
+        _webImageOperation = nil;
         _loadingInProgress = NO;
     }
     [self cancelImageRequest];
